@@ -33,9 +33,23 @@ The React Native implementation uses `FlashList` for virtualized rendering and `
 
 ### Preload Window Strategy
 
-- Preload **5 videos ahead** in the current scroll direction
-- Preload **1 video behind**
+- Preload **6 videos ahead** in the current scroll direction (`MAX_AHEAD = 6`)
+- Preload **1 video behind** (`MAX_BEHIND = 1`)
 - Unmount `MuxPlayer` entirely for items outside the window, replacing them with a lightweight poster image placeholder
+
+### Warmup for Instant First Frame (Web)
+
+Web playback can feel clunky during the thumbnail-to-first-frame transition — the player mounts, HLS segments are requested, the decoder initializes, and only then does the first frame appear. To smooth this over, RGFeed adds a warmup step for all preloaded (non-active) players:
+
+1. `MuxPlayer` stays **mounted** for all items inside the preload window — no remount on activation
+2. Once the player fires `loadedmetadata` for the first time, a short prime sequence runs:
+   - Call `play()` to kick off segment fetching and decoder initialization
+   - After ~120ms call `pause()` to stop actual playback
+   - Reset `currentTime = 0` so the active state always starts from the beginning
+3. The warmup runs **once per `playbackId` per mounted player** — a `didWarmupRef` flag prevents repeat primes on re-renders
+4. The warmup is gated behind `hasInteracted` to satisfy browser autoplay policies
+
+**Why this helps:** calling `play()` even briefly forces the browser to buffer initial segments and warm up the hardware decoder. When the user scrolls to that item and the player becomes active, the first frame is already decoded and ready — eliminating the black-frame flash that otherwise appears between thumbnail and video.
 
 ---
 
@@ -62,8 +76,10 @@ The client fetches this endpoint on mount to build the feed dynamically.
 - TikTok-style vertical swipe feed
 - CSS scroll snap navigation (`scroll-snap-type: y mandatory`)
 - Active video detection with `IntersectionObserver` (threshold 0.6)
-- Directional video preloading (5 ahead, 1 behind)
+- Directional video preloading (6 ahead, 1 behind)
 - Only active video plays; all others are paused and muted
+- Warmup decode for preloaded videos (prime play/pause on `loadedmetadata`)
+- Smoother thumbnail-to-playback transition (no black-frame flash on activation)
 - Tap to pause / resume
 - Double-tap to like with heart burst animation
 - Placeholder thumbnails using the Mux image API (`image.mux.com/{playbackId}/thumbnail.jpg`)
