@@ -27,6 +27,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <link rel="preconnect" href="https://stream.mux.com" />
+        <link rel="dns-prefetch" href="https://stream.mux.com" />
+        <link rel="preconnect" href="https://image.mux.com" />
+        <link rel="dns-prefetch" href="https://image.mux.com" />
+      </head>
       <body className={`${barlow.variable} font-sans antialiased`}>
         {children}
         <Analytics />
