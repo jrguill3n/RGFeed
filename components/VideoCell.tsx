@@ -72,6 +72,9 @@ export default function VideoCell({
   const warmupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Stores the frame-ready delay timeout to prevent premature poster fade-out
   const frameReadyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // True until the first time this playbackId becomes active — gets a longer
+  // settle delay (250ms) to prevent the zoom/pop on initial load
+  const isFirstActivationRef = useRef(true)
 
   const [liked, setLiked] = useState(false)
   const [likeCount, setLikeCount] = useState(item.likes)
@@ -87,6 +90,7 @@ export default function VideoCell({
   // Reset warmup guard and frame-ready state when playbackId changes
   useEffect(() => {
     didWarmupRef.current = false
+    isFirstActivationRef.current = true
     setIsFrameReady(false)
     // Clear any pending frame-ready timer so previous playbackId can't bleed through
     if (frameReadyTimerRef.current) {
@@ -150,10 +154,15 @@ export default function VideoCell({
 
     const scheduleReady = () => {
       if (frameReadyTimerRef.current) clearTimeout(frameReadyTimerRef.current)
+      // Use a longer settle delay the first time this playbackId becomes active
+      // (covers the initial load of index 0 and first activation of any item).
+      // Subsequent readiness events use the shorter 150ms delay.
+      const delay = isFirstActivationRef.current ? 250 : 150
+      isFirstActivationRef.current = false
       frameReadyTimerRef.current = setTimeout(() => {
         frameReadyTimerRef.current = null
         setIsFrameReady(true)
-      }, 150)
+      }, delay)
     }
 
     // If already past HAVE_CURRENT_DATA (readyState >= 2), schedule immediately
