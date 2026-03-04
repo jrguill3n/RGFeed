@@ -68,19 +68,24 @@ export default function VideoCell({
   const playerRef = useRef<MuxPlayerEl>(null)
   // Warmup runs at most once per mounted playbackId
   const didWarmupRef = useRef(false)
+  // Stores the 120ms warmup pause timeout so we can clear it on unmount
+  const warmupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [liked, setLiked] = useState(false)
   const [likeCount, setLikeCount] = useState(item.likes)
   const [hearts, setHearts] = useState<HeartBurst[]>([])
   const [showPauseIcon, setShowPauseIcon] = useState(false)
+  // True once loadeddata/canplay fires — controls poster overlay fade-out
+  const [isFrameReady, setIsFrameReady] = useState(false)
 
   const tapTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const nextHeartId = useRef(0)
   const pauseIconTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Reset warmup guard when playbackId changes (e.g. feed refreshes)
+  // Reset warmup guard and frame-ready state when playbackId changes
   useEffect(() => {
     didWarmupRef.current = false
+    setIsFrameReady(false)
   }, [item.playbackId])
 
   // --- Warmup: prime the decoder once metadata is ready for preloaded items ---
@@ -101,20 +106,54 @@ export default function VideoCell({
       player
         .play()
         .then(() => {
-          const timer = setTimeout(() => {
+          warmupTimerRef.current = setTimeout(() => {
             player.pause()
             player.currentTime = 0
           }, 120)
-          return () => clearTimeout(timer)
         })
         .catch(() => {
           // Warmup blocked by autoplay policy -- decoding will happen lazily
         })
     }
 
-    player.addEventListener('loadedmetadata', runWarmup)
-    return () => player.removeEventListener('loadedmetadata', runWarmup)
+    // If metadata already loaded (readyState >= 1), run warmup immediately
+    // readyState: 0=HAVE_NOTHING, 1=HAVE_METADATA, 2=HAVE_CURRENT_DATA, etc.
+    if ((player as HTMLMediaElement & MuxPlayerEl).readyState >= 1) {
+      runWarmup()
+    } else {
+      player.addEventListener('loadedmetadata', runWarmup)
+    }
+
+    return () => {
+      player.removeEventListener('loadedmetadata', runWarmup)
+      // Clear the 120ms pause timer on cleanup to avoid acting on unmounted player
+      if (warmupTimerRef.current) {
+        clearTimeout(warmupTimerRef.current)
+        warmupTimerRef.current = null
+      }
+    }
   }, [item.playbackId, isActive, preload, hasInteracted])
+
+  // --- First frame ready: listen for loadeddata / canplay to hide poster overlay ---
+  useEffect(() => {
+    const player = playerRef.current
+    if (!player || !preload) return
+
+    const onReady = () => setIsFrameReady(true)
+
+    // If already past HAVE_CURRENT_DATA (readyState >= 2), frame is ready now
+    if ((player as HTMLMediaElement & MuxPlayerEl).readyState >= 2) {
+      setIsFrameReady(true)
+      return
+    }
+
+    player.addEventListener('loadeddata', onReady)
+    player.addEventListener('canplay', onReady)
+    return () => {
+      player.removeEventListener('loadeddata', onReady)
+      player.removeEventListener('canplay', onReady)
+    }
+  }, [item.playbackId, preload])
 
   // --- Playback control: active vs preloaded ---
   useEffect(() => {
@@ -192,18 +231,30 @@ export default function VideoCell({
     >
       {/* Video player or lightweight poster placeholder */}
       {preload ? (
-        // @ts-expect-error -- mux-player-react ref typing is incomplete
-        <MuxPlayer
-          ref={playerRef}
-          playbackId={item.playbackId}
-          streamType="on-demand"
-          playsInline
-          loop
-          preload="auto"
-          muted
-          autoPlay={false}
-          style={{ width: '100%', height: '100%' }}
-        />
+        <>
+          {/* @ts-expect-error -- mux-player-react ref typing is incomplete */}
+          <MuxPlayer
+            ref={playerRef}
+            playbackId={item.playbackId}
+            streamType="on-demand"
+            playsInline
+            loop
+            preload="auto"
+            muted
+            autoPlay={false}
+            style={{ width: '100%', height: '100%' }}
+          />
+          {/* Poster overlay sits above MuxPlayer until first decoded frame is ready.
+              Prevents the black flash between thumbnail and first frame.
+              Fades out once isFrameReady is true. */}
+          <div
+            className="absolute inset-0 z-[5] transition-opacity duration-300 pointer-events-none"
+            style={{ opacity: isFrameReady ? 0 : 1 }}
+            aria-hidden="true"
+          >
+            <FeedItemPlaceholder item={item} />
+          </div>
+        </>
       ) : (
         <FeedItemPlaceholder item={item} />
       )}
