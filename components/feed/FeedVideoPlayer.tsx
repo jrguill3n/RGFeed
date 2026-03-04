@@ -5,15 +5,7 @@ import MuxPlayer from '@mux/mux-player-react'
 
 interface Props {
   playbackId: string
-  /**
-   * True only when this item is the active feed item AND not manually paused.
-   * Preloaded-but-inactive items receive isActive=false.
-   */
   isActive: boolean
-  /**
-   * True after the user has clicked anywhere in the feed for the first time.
-   * Required to unmute audio (browser autoplay policy).
-   */
   hasInteracted: boolean
 }
 
@@ -26,21 +18,53 @@ type MuxPlayerEl = HTMLElement & {
 
 export default function FeedVideoPlayer({ playbackId, isActive, hasInteracted }: Props) {
   const playerRef = useRef<MuxPlayerEl>(null)
+  // Guard: warmup runs at most once per mounted playbackId
+  const didWarmupRef = useRef(false)
 
+  // Reset warmup guard whenever the playbackId changes
+  useEffect(() => {
+    didWarmupRef.current = false
+  }, [playbackId])
+
+  // --- Warmup: prime the decoder once metadata is ready for preloaded items ---
+  useEffect(() => {
+    const player = playerRef.current
+    if (!player || isActive) return // active items are handled by the playback effect
+
+    const runWarmup = () => {
+      if (didWarmupRef.current) return
+      didWarmupRef.current = true
+
+      // Ensure muted before touching play (preloaded items must never unmute)
+      player.muted = true
+      player.play().then(() => {
+        const timer = setTimeout(() => {
+          player.pause()
+          player.currentTime = 0
+        }, 120)
+        // Cleanup if the component unmounts before the timer fires
+        return () => clearTimeout(timer)
+      }).catch(() => {
+        // Warmup play blocked — no-op, decode will happen lazily
+      })
+    }
+
+    player.addEventListener('loadedmetadata', runWarmup)
+    return () => player.removeEventListener('loadedmetadata', runWarmup)
+  }, [playbackId, isActive])
+
+  // --- Playback control: active vs preloaded ---
   useEffect(() => {
     const player = playerRef.current
     if (!player) return
 
     if (isActive) {
-      // Only unmute when the user has already interacted (browser autoplay policy)
       player.muted = !hasInteracted
       player.play().catch(() => {
-        // If play fails (autoplay blocked), fall back to muted play
         player.muted = true
         player.play().catch(() => { /* ignore */ })
       })
     } else {
-      // Preloaded-but-inactive: pause and keep muted
       player.pause()
       player.muted = true
     }
@@ -55,7 +79,6 @@ export default function FeedVideoPlayer({ playbackId, isActive, hasInteracted }:
       playsInline
       loop
       preload="auto"
-      // Always start muted; useEffect above handles unmuting after user gesture
       muted
       autoPlay={false}
       style={{ width: '100%', height: '100%' }}
