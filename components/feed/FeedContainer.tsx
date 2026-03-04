@@ -115,14 +115,35 @@ export default function FeedContainer() {
     []
   )
 
+  const preloadIndices = FEED_ITEMS.map((_, i) => i).filter(shouldPreload)
+
   return (
     <div
       ref={scrollContainerRef}
       className="feed-scroll w-full"
       aria-label="Video feed"
-      // Capture first interaction at the container level
       onClick={handleFirstInteraction}
     >
+      {/* Debug overlay */}
+      <div className="fixed top-3 left-3 z-50 pointer-events-none font-mono text-[11px] leading-5 bg-black/70 text-green-400 border border-green-500/40 rounded-md px-3 py-2 space-y-0.5 backdrop-blur-sm">
+        <div>
+          <span className="text-green-600">currentIndex</span>
+          {' '}{currentIndex}
+        </div>
+        <div>
+          <span className="text-green-600">scrollDirection</span>
+          {' '}{scrollDirection}
+        </div>
+        <div>
+          <span className="text-green-600">preloadIndices</span>
+          {' '}[{preloadIndices.join(', ')}]
+        </div>
+        <div>
+          <span className="text-green-600">hasInteracted</span>
+          {' '}{String(hasInteracted)}
+        </div>
+      </div>
+
       {FEED_ITEMS.map((item, index) => (
         <FeedItemView
           key={item.id}
