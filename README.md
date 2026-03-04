@@ -2,7 +2,7 @@
 
 <a href="https://v0.app/chat/api/kiro/clone/jrguill3n/RGFeed" alt="Open in Kiro"><img src="https://pdgvvgmkdvyeydso.public.blob.vercel-storage.com/open%20in%20kiro.svg?sanitize=true" /></a>
 
-![Translating Slop Social (React Native) to Web — Architecture Diagram](./public/architecture-diagram.jpg)
+![Translating Slop Social (React Native) to Web — Architecture Diagram](https://hebbkx1anhila5yf.public.blob.vercel-storage.com/slop-social-web-architecture-5lnr4FZCTVs3ba5KLfLwAHAH0Bdk40.png)
 
 ## Project Overview
 
