@@ -16,8 +16,7 @@ RGFeed is a TikTok-style vertical video feed built for the web. It recreates the
 2. **The Slop Social translation in one sentence:** "We track the active index and scroll direction, then only mount players inside a directional preload window."
 3. **Preload window:** "Preload 6 ahead, 1 behind."
 4. **The key UX issue and fix:** "Web can feel clunky in the thumbnail-to-first-frame transition, so we warm up preloaded videos with a short play/pause prime."
-5. **Debug mode:** "Add `?debug=1` to the URL to see `currentIndex`, direction, and preload count in real time."
-6. **Where videos come from:** "Videos are pulled dynamically from the Mux Video API — only assets with public playback IDs appear in the feed."
+5. **Where videos come from:** "Videos are pulled dynamically from the Mux Video API — only assets with public playback IDs appear in the feed."
 
 ### What to look for
 

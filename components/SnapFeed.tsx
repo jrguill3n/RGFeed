@@ -19,7 +19,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { buildFeedItems, FeedItem, MuxVideo } from '@/lib/feed-data'
 import { shouldPreload as computeShouldPreload } from '@/lib/preloadWindow'
 import VideoCell from './VideoCell'
-import DebugOverlay from './DebugOverlay'
 
 const OBSERVE_THRESHOLD = 0.6
 
@@ -179,14 +178,6 @@ export default function SnapFeed() {
       aria-label="Video feed"
       onClick={handleFirstInteraction}
     >
-      <DebugOverlay
-        currentIndex={currentIndex}
-        scrollDirection={scrollDirection}
-        preloadCount={feedItems.filter((_, i) =>
-          computeShouldPreload(i, currentIndex, scrollDirection)
-        ).length}
-      />
-
       {feedItems.map((item, index) => {
         const preload = computeShouldPreload(index, currentIndex, scrollDirection)
         const paused = pausedMap[index] ?? false
