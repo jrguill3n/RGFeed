@@ -325,6 +325,15 @@ export default function VideoCell({
         </div>
       )}
 
+      {/* Loading indicator — pulsing ring shown while active video is buffering */}
+      <div
+        className="absolute bottom-24 inset-x-0 z-20 flex justify-center pointer-events-none transition-opacity duration-300"
+        style={{ opacity: isActive && !isFrameReady ? 1 : 0 }}
+        aria-hidden="true"
+      >
+        <div className="w-4 h-4 rounded-full border-2 border-white/60 border-t-transparent animate-spin" />
+      </div>
+
       {/* Tap / double-tap interaction layer */}
       <div
         className="absolute inset-0 z-10 cursor-pointer"
