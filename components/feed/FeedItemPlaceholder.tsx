@@ -7,7 +7,7 @@ interface Props {
 }
 
 export default function FeedItemPlaceholder({ item, eager = false }: Props) {
-  const posterUrl = `https://image.mux.com/${item.playbackId}/thumbnail.jpg?width=720&quality=60&fit_mode=smartcrop&time=2`
+  const posterUrl = `https://image.mux.com/${item.playbackId}/thumbnail.jpg?width=720&height=1280&fit_mode=crop&time=2&quality=60`
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden">
