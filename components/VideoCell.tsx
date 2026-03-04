@@ -70,6 +70,8 @@ export default function VideoCell({
   const didWarmupRef = useRef(false)
   // Stores the 120ms warmup pause timeout so we can clear it on unmount
   const warmupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Stores the frame-ready delay timeout to prevent premature poster fade-out
+  const frameReadyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [liked, setLiked] = useState(false)
   const [likeCount, setLikeCount] = useState(item.likes)
@@ -86,6 +88,11 @@ export default function VideoCell({
   useEffect(() => {
     didWarmupRef.current = false
     setIsFrameReady(false)
+    // Clear any pending frame-ready timer so previous playbackId can't bleed through
+    if (frameReadyTimerRef.current) {
+      clearTimeout(frameReadyTimerRef.current)
+      frameReadyTimerRef.current = null
+    }
   }, [item.playbackId])
 
   // --- Warmup: prime the decoder once metadata is ready for preloaded items ---
@@ -135,23 +142,40 @@ export default function VideoCell({
   }, [item.playbackId, isActive, preload, hasInteracted])
 
   // --- First frame ready: listen for loadeddata / canplay to hide poster overlay ---
+  // Delay the actual state flip by 150ms so the first decoded frame has time to
+  // settle before the poster starts fading, preventing a brief black gap.
   useEffect(() => {
     const player = playerRef.current
     if (!player || !preload) return
 
-    const onReady = () => setIsFrameReady(true)
-
-    // If already past HAVE_CURRENT_DATA (readyState >= 2), frame is ready now
-    if ((player as HTMLMediaElement & MuxPlayerEl).readyState >= 2) {
-      setIsFrameReady(true)
-      return
+    const scheduleReady = () => {
+      if (frameReadyTimerRef.current) clearTimeout(frameReadyTimerRef.current)
+      frameReadyTimerRef.current = setTimeout(() => {
+        frameReadyTimerRef.current = null
+        setIsFrameReady(true)
+      }, 150)
     }
 
-    player.addEventListener('loadeddata', onReady)
-    player.addEventListener('canplay', onReady)
+    // If already past HAVE_CURRENT_DATA (readyState >= 2), schedule immediately
+    if ((player as HTMLMediaElement & MuxPlayerEl).readyState >= 2) {
+      scheduleReady()
+      return () => {
+        if (frameReadyTimerRef.current) {
+          clearTimeout(frameReadyTimerRef.current)
+          frameReadyTimerRef.current = null
+        }
+      }
+    }
+
+    player.addEventListener('loadeddata', scheduleReady)
+    player.addEventListener('canplay', scheduleReady)
     return () => {
-      player.removeEventListener('loadeddata', onReady)
-      player.removeEventListener('canplay', onReady)
+      player.removeEventListener('loadeddata', scheduleReady)
+      player.removeEventListener('canplay', scheduleReady)
+      if (frameReadyTimerRef.current) {
+        clearTimeout(frameReadyTimerRef.current)
+        frameReadyTimerRef.current = null
+      }
     }
   }, [item.playbackId, preload])
 
@@ -242,6 +266,7 @@ export default function VideoCell({
             preload="auto"
             muted
             autoPlay={false}
+            preferPlayback="mse"
             className="absolute inset-0 w-full h-full"
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
