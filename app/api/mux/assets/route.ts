@@ -34,8 +34,14 @@ export async function GET() {
   const tokenSecret = process.env.MUX_TOKEN_SECRET
 
   if (!tokenId || !tokenSecret) {
+    // Add MUX_TOKEN_ID and MUX_TOKEN_SECRET via the Vars panel in the v0 sidebar,
+    // or as environment variables in your Vercel project settings.
+    console.error('Mux credentials missing: set MUX_TOKEN_ID and MUX_TOKEN_SECRET')
     return NextResponse.json(
-      { error: 'Mux credentials not configured.' },
+      {
+        error:
+          'Mux credentials are not configured. Add MUX_TOKEN_ID and MUX_TOKEN_SECRET to your environment variables.',
+      },
       { status: 500 }
     )
   }
