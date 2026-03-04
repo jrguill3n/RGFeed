@@ -38,6 +38,9 @@ export default function SnapFeed() {
   const lastScrollTopRef = useRef(0)
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const observerRef = useRef<IntersectionObserver | null>(null)
+  // Guard so the active-player prime runs only once per session
+  const didPrimeRef = useRef(false)
+  const primeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // --- Fetch real Mux assets on mount ---
   useEffect(() => {
@@ -120,14 +123,44 @@ export default function SnapFeed() {
   }, [feedItems.length])
 
   const handleFirstInteraction = useCallback(() => {
+    // Always unlock media on first gesture
     setHasInteracted(true)
-  }, [])
+
+    // Prime the active player once so the first play feels instant.
+    // Uses pointerdown so this fires as early as possible in the gesture lifecycle.
+    if (didPrimeRef.current) return
+    didPrimeRef.current = true
+
+    const container = itemRefs.current[currentIndex]
+    if (!container) return
+    const player = container.querySelector('mux-player') as
+      | (HTMLElement & { play: () => Promise<void>; pause: () => void; currentTime: number })
+      | null
+    if (!player) return
+
+    player.play().catch(() => {
+      // Autoplay may still be blocked; the warmup in VideoCell handles the retry
+    })
+    primeTimerRef.current = setTimeout(() => {
+      primeTimerRef.current = null
+      player.pause()
+      player.currentTime = 0
+    }, 100)
+  // currentIndex is intentionally captured at call time — we only prime once
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex])
 
   const setItemRef = useCallback(
     (index: number) => (el: HTMLDivElement | null) => {
       itemRefs.current[index] = el
       if (el && observerRef.current) observerRef.current.observe(el)
     },
+    []
+  )
+
+  const makeSetPaused = useCallback(
+    (index: number) => (val: boolean) =>
+      setPausedMap((prev) => ({ ...prev, [index]: val })),
     []
   )
 
@@ -176,7 +209,7 @@ export default function SnapFeed() {
       ref={scrollContainerRef}
       className="feed-scroll w-full"
       aria-label="Video feed"
-      onClick={handleFirstInteraction}
+      onPointerDown={handleFirstInteraction}
     >
       {feedItems.map((item, index) => {
         const preload = computeShouldPreload(index, currentIndex, scrollDirection)
@@ -190,9 +223,7 @@ export default function SnapFeed() {
             isActive={index === currentIndex}
             shouldPreload={preload}
             paused={paused}
-            setPaused={(val) =>
-              setPausedMap((prev) => ({ ...prev, [index]: val }))
-            }
+            setPaused={makeSetPaused(index)}
             hasInteracted={hasInteracted}
             observerRef={setItemRef(index)}
           />

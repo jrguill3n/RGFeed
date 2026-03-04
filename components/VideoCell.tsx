@@ -70,6 +70,8 @@ export default function VideoCell({
   const didWarmupRef = useRef(false)
   // Stores the 120ms warmup pause timeout so we can clear it on unmount
   const warmupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Stores the frame-ready delay timeout to prevent premature poster fade-out
+  const frameReadyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [liked, setLiked] = useState(false)
   const [likeCount, setLikeCount] = useState(item.likes)
@@ -86,6 +88,11 @@ export default function VideoCell({
   useEffect(() => {
     didWarmupRef.current = false
     setIsFrameReady(false)
+    // Clear any pending frame-ready timer so previous playbackId can't bleed through
+    if (frameReadyTimerRef.current) {
+      clearTimeout(frameReadyTimerRef.current)
+      frameReadyTimerRef.current = null
+    }
   }, [item.playbackId])
 
   // --- Warmup: prime the decoder once metadata is ready for preloaded items ---
@@ -135,23 +142,40 @@ export default function VideoCell({
   }, [item.playbackId, isActive, preload, hasInteracted])
 
   // --- First frame ready: listen for loadeddata / canplay to hide poster overlay ---
+  // Delay the actual state flip by 150ms so the first decoded frame has time to
+  // settle before the poster starts fading, preventing a brief black gap.
   useEffect(() => {
     const player = playerRef.current
     if (!player || !preload) return
 
-    const onReady = () => setIsFrameReady(true)
-
-    // If already past HAVE_CURRENT_DATA (readyState >= 2), frame is ready now
-    if ((player as HTMLMediaElement & MuxPlayerEl).readyState >= 2) {
-      setIsFrameReady(true)
-      return
+    const scheduleReady = () => {
+      if (frameReadyTimerRef.current) clearTimeout(frameReadyTimerRef.current)
+      frameReadyTimerRef.current = setTimeout(() => {
+        frameReadyTimerRef.current = null
+        setIsFrameReady(true)
+      }, 150)
     }
 
-    player.addEventListener('loadeddata', onReady)
-    player.addEventListener('canplay', onReady)
+    // If already past HAVE_CURRENT_DATA (readyState >= 2), schedule immediately
+    if ((player as HTMLMediaElement & MuxPlayerEl).readyState >= 2) {
+      scheduleReady()
+      return () => {
+        if (frameReadyTimerRef.current) {
+          clearTimeout(frameReadyTimerRef.current)
+          frameReadyTimerRef.current = null
+        }
+      }
+    }
+
+    player.addEventListener('loadeddata', scheduleReady)
+    player.addEventListener('canplay', scheduleReady)
     return () => {
-      player.removeEventListener('loadeddata', onReady)
-      player.removeEventListener('canplay', onReady)
+      player.removeEventListener('loadeddata', scheduleReady)
+      player.removeEventListener('canplay', scheduleReady)
+      if (frameReadyTimerRef.current) {
+        clearTimeout(frameReadyTimerRef.current)
+        frameReadyTimerRef.current = null
+      }
     }
   }, [item.playbackId, preload])
 
@@ -225,39 +249,54 @@ export default function VideoCell({
   return (
     <div
       ref={observerRef}
-      className="feed-item relative w-full overflow-hidden bg-black"
+      className="feed-item relative w-full h-dvh overflow-hidden bg-black will-change-transform"
       data-id={item.id}
       data-index={index}
     >
-      {/* Video player or lightweight poster placeholder */}
-      {preload ? (
-        <>
-          {/* @ts-expect-error -- mux-player-react ref typing is incomplete */}
-          <MuxPlayer
-            ref={playerRef}
-            playbackId={item.playbackId}
-            streamType="on-demand"
-            playsInline
-            loop
-            preload="auto"
-            muted
-            autoPlay={false}
-            style={{ width: '100%', height: '100%' }}
-          />
-          {/* Poster overlay sits above MuxPlayer until first decoded frame is ready.
-              Prevents the black flash between thumbnail and first frame.
-              Fades out once isFrameReady is true. */}
-          <div
-            className="absolute inset-0 z-[5] transition-opacity duration-300 pointer-events-none"
-            style={{ opacity: isFrameReady ? 0 : 1 }}
-            aria-hidden="true"
-          >
-            <FeedItemPlaceholder item={item} />
-          </div>
-        </>
-      ) : (
-        <FeedItemPlaceholder item={item} />
-      )}
+      {/*
+        Layer 0 (bottom): poster placeholder — always rendered so the tree
+        structure never changes regardless of preload state. Visible whenever
+        MuxPlayer has not yet decoded its first frame.
+      */}
+      <div className="absolute inset-0">
+        <FeedItemPlaceholder item={item} eager={preload} />
+      </div>
+
+      {/*
+        Layer 1: MuxPlayer — always in the tree at the same position so React
+        never unmounts/remounts it. When outside the preload window we omit
+        the playbackId so no network request is made; when inside we pass it.
+        This prevents the zoom/jump caused by a mount/unmount cycle at the
+        moment the item enters the preload window.
+      */}
+      {/* @ts-expect-error -- mux-player-react ref typing is incomplete */}
+      <MuxPlayer
+        ref={playerRef}
+        playbackId={preload ? item.playbackId : undefined}
+        streamType="on-demand"
+        playsInline
+        loop
+        preload="auto"
+        muted
+        autoPlay={false}
+        preferPlayback="mse"
+        className="absolute inset-0 w-full h-full"
+        style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}
+      />
+
+      {/*
+        Layer 2: frame-ready overlay — sits above the player, fades out once
+        the player has decoded its first frame. Prevents any black flash
+        between the poster and the first video frame.
+        pointer-events-none so taps pass through to the interaction layer.
+      */}
+      <div
+        className="absolute inset-0 z-[5] pointer-events-none transition-opacity duration-300"
+        style={{ opacity: isFrameReady ? 0 : 1 }}
+        aria-hidden="true"
+      >
+        <FeedItemPlaceholder item={item} eager={preload} />
+      </div>
 
       {/* Tap / double-tap interaction layer */}
       <div
