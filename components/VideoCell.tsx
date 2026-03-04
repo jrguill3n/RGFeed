@@ -225,7 +225,7 @@ export default function VideoCell({
   return (
     <div
       ref={observerRef}
-      className="feed-item relative w-full overflow-hidden bg-black"
+      className="feed-item relative w-full h-dvh overflow-hidden bg-black"
       data-id={item.id}
       data-index={index}
     >
@@ -242,7 +242,8 @@ export default function VideoCell({
             preload="auto"
             muted
             autoPlay={false}
-            style={{ width: '100%', height: '100%' }}
+            className="absolute inset-0 w-full h-full"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
           {/* Poster overlay sits above MuxPlayer until first decoded frame is ready.
               eager=true so the browser fetches the thumbnail at high priority

@@ -19,6 +19,7 @@ export default function FeedItemPlaceholder({ item, eager = false }: Props) {
         loading={eager ? 'eager' : 'lazy'}
         // @ts-expect-error -- fetchpriority is valid HTML but not yet in React types
         fetchpriority={eager ? 'high' : undefined}
+        style={{ willChange: 'opacity' }}
       />
       {/* Subtle dark vignette */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/60 pointer-events-none" />
