@@ -131,6 +131,12 @@ export default function SnapFeed() {
     []
   )
 
+  const makeSetPaused = useCallback(
+    (index: number) => (val: boolean) =>
+      setPausedMap((prev) => ({ ...prev, [index]: val })),
+    []
+  )
+
   // --- Loading state ---
   if (loading) {
     return (
@@ -190,9 +196,7 @@ export default function SnapFeed() {
             isActive={index === currentIndex}
             shouldPreload={preload}
             paused={paused}
-            setPaused={(val) =>
-              setPausedMap((prev) => ({ ...prev, [index]: val }))
-            }
+            setPaused={makeSetPaused(index)}
             hasInteracted={hasInteracted}
             observerRef={setItemRef(index)}
           />
