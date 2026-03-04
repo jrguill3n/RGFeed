@@ -55,19 +55,19 @@ export async function GET() {
     })
 
     if (!res.ok) {
-      const text = await res.text()
-      console.error('[v0] Mux API error:', res.status, text)
+      // Log server-side only — never forward Mux error details to the client
+      console.error(`Mux API error: ${res.status}`)
       return NextResponse.json(
-        { error: `Mux API responded with ${res.status}` },
-        { status: res.status }
+        { error: 'Failed to load videos.' },
+        { status: 502 }
       )
     }
 
     muxData = await res.json()
-  } catch (err) {
-    console.error('[v0] Failed to fetch Mux assets:', err)
+  } catch {
+    // Catch-all: swallow stack trace, return generic message
     return NextResponse.json(
-      { error: 'Failed to reach Mux API.' },
+      { error: 'Failed to load videos.' },
       { status: 502 }
     )
   }
