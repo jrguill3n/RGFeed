@@ -245,18 +245,19 @@ export default function VideoCell({
             style={{ width: '100%', height: '100%' }}
           />
           {/* Poster overlay sits above MuxPlayer until first decoded frame is ready.
-              Prevents the black flash between thumbnail and first frame.
+              eager=true so the browser fetches the thumbnail at high priority
+              immediately, preventing any black gap before the video is ready.
               Fades out once isFrameReady is true. */}
           <div
             className="absolute inset-0 z-[5] transition-opacity duration-300 pointer-events-none"
             style={{ opacity: isFrameReady ? 0 : 1 }}
             aria-hidden="true"
           >
-            <FeedItemPlaceholder item={item} />
+            <FeedItemPlaceholder item={item} eager />
           </div>
         </>
       ) : (
-        <FeedItemPlaceholder item={item} />
+        <FeedItemPlaceholder item={item} eager={false} />
       )}
 
       {/* Tap / double-tap interaction layer */}
