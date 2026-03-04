@@ -2,6 +2,8 @@
 
 <a href="https://v0.app/chat/api/kiro/clone/jrguill3n/RGFeed" alt="Open in Kiro"><img src="https://pdgvvgmkdvyeydso.public.blob.vercel-storage.com/open%20in%20kiro.svg?sanitize=true" /></a>
 
+![Translating Slop Social (React Native) to Web — Architecture Diagram](./public/architecture-diagram.jpg)
+
 ## Project Overview
 
 RGFeed is a TikTok-style vertical video feed built for the web. It recreates the architecture from Mux's [Slop Social](https://github.com/muxinc/slop-social) React Native demo and translates it into a web implementation using Next.js. The project was built rapidly using [Vercel v0](https://v0.dev).
