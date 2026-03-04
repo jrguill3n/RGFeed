@@ -316,15 +316,6 @@ export default function VideoCell({
         <FeedItemPlaceholder item={item} eager={preload} />
       </div>
 
-      {/* "Tap to start" hint — visible only on the active item before first interaction */}
-      {isActive && !hasInteracted && !isFrameReady && (
-        <div className="absolute bottom-32 inset-x-0 z-20 flex justify-center pointer-events-none">
-          <span className="text-sm font-medium text-white/70 bg-black/40 backdrop-blur-sm px-4 py-1.5 rounded-full">
-            Tap to start
-          </span>
-        </div>
-      )}
-
       {/* Loading indicator — pulsing ring shown while active video is buffering */}
       <div
         className="absolute bottom-24 inset-x-0 z-20 flex justify-center pointer-events-none transition-opacity duration-300"
