@@ -15,7 +15,7 @@ export default function FeedItemPlaceholder({ item, eager = false }: Props) {
       <img
         src={posterUrl}
         alt={`Thumbnail for ${item.username}'s video`}
-        className="absolute inset-0 w-full h-full object-cover"
+        className="absolute inset-0 w-full h-full object-cover will-change-opacity will-change-transform"
         loading={eager ? 'eager' : 'lazy'}
         // @ts-expect-error -- fetchpriority is valid HTML but not yet in React types
         fetchpriority={eager ? 'high' : undefined}
