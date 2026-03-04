@@ -4,51 +4,73 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { FEED_ITEMS } from '@/lib/feed-data'
 import FeedItemView from './FeedItemView'
 
-const PRELOAD_AHEAD = 5   // items to preload in scroll direction
-const PRELOAD_BEHIND = 1  // items to preload behind active
+// Directional preload window sizes (matching Slop Social spec)
+const MAX_AHEAD = 5
+const MAX_BEHIND = 1
 const OBSERVE_THRESHOLD = 0.6
 
 export default function FeedContainer() {
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [scrollDir, setScrollDir] = useState<'down' | 'up'>('down')
+  const [scrollDirection, setScrollDirection] = useState<'down' | 'up'>('down')
+  // Track whether the user has interacted — gates audio unmute
+  const [hasInteracted, setHasInteracted] = useState(false)
 
-  // Track scroll direction via scrollTop delta
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const lastScrollTopRef = useRef(0)
-
-  // Intersection observer refs — one per item
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const itemRefs = useRef<(HTMLDivElement | null)[]>(Array.from({ length: FEED_ITEMS.length }, () => null))
+  const itemRefs = useRef<(HTMLDivElement | null)[]>(
+    Array.from({ length: FEED_ITEMS.length }, () => null)
+  )
   const observerRef = useRef<IntersectionObserver | null>(null)
 
-  // Compute preload window based on direction
-  const isInPreloadWindow = useCallback(
-    (index: number): boolean => {
-      if (scrollDir === 'down') {
-        return index >= currentIndex - PRELOAD_BEHIND && index <= currentIndex + PRELOAD_AHEAD
-      } else {
-        return index >= currentIndex - PRELOAD_AHEAD && index <= currentIndex + PRELOAD_BEHIND
-      }
-    },
-    [currentIndex, scrollDir]
-  )
+  // --- Scroll direction tracking ---
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
 
-  // Set up IntersectionObserver
+    const handleScroll = () => {
+      const st = container.scrollTop
+      if (st > lastScrollTopRef.current) {
+        setScrollDirection('down')
+      } else if (st < lastScrollTopRef.current) {
+        setScrollDirection('up')
+      }
+      lastScrollTopRef.current = st
+    }
+
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    return () => container.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  // --- IntersectionObserver — pick the most visible item (>= threshold) ---
   useEffect(() => {
     observerRef.current?.disconnect()
+
+    // Keep a visibility ratio map so we can pick the most visible item
+    const ratioMap = new Map<number, number>()
 
     observerRef.current = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const el = entry.target as HTMLDivElement
-            const id = el.dataset.id
-            const idx = FEED_ITEMS.findIndex((item) => item.id === id)
-            if (idx !== -1) {
-              setCurrentIndex(idx)
-            }
+          const el = entry.target as HTMLDivElement
+          const idx = Number(el.dataset.index)
+          if (!isNaN(idx)) {
+            ratioMap.set(idx, entry.intersectionRatio)
           }
         })
+
+        // Find the item with the highest visibility that meets the threshold
+        let bestIdx = -1
+        let bestRatio = OBSERVE_THRESHOLD - 0.001
+        ratioMap.forEach((ratio, idx) => {
+          if (ratio > bestRatio) {
+            bestRatio = ratio
+            bestIdx = idx
+          }
+        })
+
+        if (bestIdx !== -1) {
+          setCurrentIndex(bestIdx)
+        }
       },
       { threshold: OBSERVE_THRESHOLD }
     )
@@ -57,29 +79,31 @@ export default function FeedContainer() {
       if (el) observerRef.current?.observe(el)
     })
 
-    return () => {
-      observerRef.current?.disconnect()
-    }
+    return () => observerRef.current?.disconnect()
   }, [])
 
-  // Track scroll direction
-  useEffect(() => {
-    const container = scrollContainerRef.current
-    if (!container) return
+  // --- Directional shouldPreload ---
+  // distance = index - currentIndex
+  // "ahead" in scroll direction:
+  //   scrollDirection "down" → distance > 0 is ahead
+  //   scrollDirection "up"   → distance < 0 is ahead
+  const shouldPreload = useCallback(
+    (index: number): boolean => {
+      if (index === currentIndex) return true
+      const distance = index - currentIndex
+      const isAhead =
+        scrollDirection === 'down' ? distance > 0 : distance < 0
+      const absDist = Math.abs(distance)
+      if (isAhead) return absDist <= MAX_AHEAD
+      return absDist <= MAX_BEHIND
+    },
+    [currentIndex, scrollDirection]
+  )
 
-    const handleScroll = () => {
-      const st = container.scrollTop
-      if (st > lastScrollTopRef.current) {
-        setScrollDir('down')
-      } else if (st < lastScrollTopRef.current) {
-        setScrollDir('up')
-      }
-      lastScrollTopRef.current = st
-    }
-
-    container.addEventListener('scroll', handleScroll, { passive: true })
-    return () => container.removeEventListener('scroll', handleScroll)
-  }, [])
+  // --- First-interaction handler — set on the container so any click counts ---
+  const handleFirstInteraction = useCallback(() => {
+    if (!hasInteracted) setHasInteracted(true)
+  }, [hasInteracted])
 
   const setItemRef = useCallback(
     (index: number) => (el: HTMLDivElement | null) => {
@@ -96,13 +120,18 @@ export default function FeedContainer() {
       ref={scrollContainerRef}
       className="feed-scroll w-full"
       aria-label="Video feed"
+      // Capture first interaction at the container level
+      onClick={handleFirstInteraction}
     >
       {FEED_ITEMS.map((item, index) => (
         <FeedItemView
           key={item.id}
           item={item}
+          index={index}
           isActive={index === currentIndex}
-          isPreloaded={isInPreloadWindow(index)}
+          shouldPreload={shouldPreload(index)}
+          hasInteracted={hasInteracted}
+          onFirstInteraction={handleFirstInteraction}
           observerRef={setItemRef(index)}
         />
       ))}

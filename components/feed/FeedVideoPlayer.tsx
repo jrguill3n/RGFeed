@@ -5,8 +5,16 @@ import MuxPlayer from '@mux/mux-player-react'
 
 interface Props {
   playbackId: string
-  /** True only for the single active item that should be playing */
+  /**
+   * True only when this item is the active feed item AND not manually paused.
+   * Preloaded-but-inactive items receive isActive=false.
+   */
   isActive: boolean
+  /**
+   * True after the user has clicked anywhere in the feed for the first time.
+   * Required to unmute audio (browser autoplay policy).
+   */
+  hasInteracted: boolean
 }
 
 type MuxPlayerEl = HTMLElement & {
@@ -16,7 +24,7 @@ type MuxPlayerEl = HTMLElement & {
   currentTime: number
 }
 
-export default function FeedVideoPlayer({ playbackId, isActive }: Props) {
+export default function FeedVideoPlayer({ playbackId, isActive, hasInteracted }: Props) {
   const playerRef = useRef<MuxPlayerEl>(null)
 
   useEffect(() => {
@@ -24,17 +32,19 @@ export default function FeedVideoPlayer({ playbackId, isActive }: Props) {
     if (!player) return
 
     if (isActive) {
-      player.muted = false
+      // Only unmute when the user has already interacted (browser autoplay policy)
+      player.muted = !hasInteracted
       player.play().catch(() => {
-        // Autoplay blocked — fall back to muted autoplay
+        // If play fails (autoplay blocked), fall back to muted play
         player.muted = true
         player.play().catch(() => { /* ignore */ })
       })
     } else {
+      // Preloaded-but-inactive: pause and keep muted
       player.pause()
       player.muted = true
     }
-  }, [isActive])
+  }, [isActive, hasInteracted])
 
   return (
     // @ts-expect-error — mux-player-react ref typing doesn't fully match HTMLElement
@@ -45,7 +55,7 @@ export default function FeedVideoPlayer({ playbackId, isActive }: Props) {
       playsInline
       loop
       preload="auto"
-      // Start muted; the useEffect above unmutes for the active item
+      // Always start muted; useEffect above handles unmuting after user gesture
       muted
       autoPlay={false}
       style={{ width: '100%', height: '100%' }}
