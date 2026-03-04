@@ -8,8 +8,8 @@ export default function FeedNav() {
 
       <nav className="relative flex items-center justify-between px-4 pt-3 pb-4 pointer-events-auto">
         {/* Left: logo */}
-        <span className="text-foreground font-bold text-lg tracking-tight select-none">
-          Reel<span className="text-accent">Feed</span>
+        <span className="text-foreground font-black text-2xl tracking-widest uppercase select-none">
+          RG<span className="text-accent">Feed</span>
         </span>
 
         {/* Center: tabs */}
