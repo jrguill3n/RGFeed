@@ -10,6 +10,24 @@ RGFeed is a TikTok-style vertical video feed built for the web. It recreates the
 
 ---
 
+## Demo Script (30 seconds)
+
+1. **Open the app and start scrolling.** It's a TikTok-style vertical feed — each item is 100vh, navigation is driven by CSS scroll snap.
+2. **The Slop Social translation in one sentence:** "We track the active index and scroll direction, then only mount players inside a directional preload window."
+3. **Preload window:** "Preload 6 ahead, 1 behind."
+4. **The key UX issue and fix:** "Web can feel clunky in the thumbnail-to-first-frame transition, so we warm up preloaded videos with a short play/pause prime."
+5. **Debug mode:** "Add `?debug=1` to the URL to see `currentIndex`, direction, and preload count in real time."
+6. **Where videos come from:** "Videos are pulled dynamically from the Mux Video API — only assets with public playback IDs appear in the feed."
+
+### What to look for
+
+- No buffering spinner between swipes
+- Only one video plays at a time
+- Smooth transitions with warmup prime
+- Feed stays responsive even with multiple items mounted
+
+---
+
 ## Architecture Inspiration
 
 The [Mux Slop Social demo](https://github.com/muxinc/slop-social) is a React Native proof-of-concept that demonstrates three core systems for high-performance vertical video feeds:
