@@ -290,7 +290,16 @@ export default function VideoCell({
         autoPlay={false}
         preferPlayback="mse"
         className="absolute inset-0 w-full h-full"
-        style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          objectPosition: 'center center',
+          transform: 'translateZ(0)',
+          backfaceVisibility: 'hidden',
+        }}
       />
 
       {/*

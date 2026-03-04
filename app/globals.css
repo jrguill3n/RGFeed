@@ -155,11 +155,27 @@
   animation: like-pop 0.35s ease-out forwards;
 }
 
-/* Mux player: hide default controls chrome */
+/* Mux player: force cover sizing to match poster exactly */
 mux-player {
   --media-object-fit: cover;
-  --media-object-position: center;
+  --media-object-position: center center;
   --controls: none;
+  display: block;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+  object-fit: cover;
+  object-position: center center;
+}
+
+/* Ensure the inner media element also covers */
+mux-player::part(media),
+mux-player video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
 }
