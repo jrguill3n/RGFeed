@@ -14,8 +14,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { buildFeedItems, FeedItem, MuxVideo } from '@/lib/feed-data'
 import FeedItemView from './FeedItemView'
 
-// Directional preload window sizes
-const MAX_AHEAD = 5
+// Directional preload window sizes (web POC optimization: 6 ahead, 1 behind)
+const MAX_AHEAD = 6
 const MAX_BEHIND = 1
 const OBSERVE_THRESHOLD = 0.6
 
@@ -200,8 +200,8 @@ export default function FeedContainer() {
           {' '}{scrollDirection}
         </div>
         <div>
-          <span className="text-green-600">preloadIndices</span>
-          {' '}[{preloadIndices.join(', ')}]
+          <span className="text-green-600">preloaded</span>
+          {' '}{preloadIndices.length} items [{preloadIndices.join(', ')}]
         </div>
         <div>
           <span className="text-green-600">hasInteracted</span>
