@@ -1,26 +1,64 @@
 'use client'
 
+/**
+ * FeedContainer — client-side feed shell.
+ *
+ * Web translation of Slop Social's feed architecture:
+ * - On mount, fetches /api/mux/assets which pulls public playback IDs from Mux
+ * - Applies scroll-snap + IntersectionObserver to track currentIndex
+ * - Applies directional preloading: 5 items ahead, 1 item behind in scroll direction
+ * - Only the active item plays audio; preloaded items are muted and paused
+ */
+
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FEED_ITEMS } from '@/lib/feed-data'
+import { buildFeedItems, FeedItem, MuxVideo } from '@/lib/feed-data'
 import FeedItemView from './FeedItemView'
 
-// Directional preload window sizes (matching Slop Social spec)
+// Directional preload window sizes
 const MAX_AHEAD = 5
 const MAX_BEHIND = 1
 const OBSERVE_THRESHOLD = 0.6
 
 export default function FeedContainer() {
+  const [feedItems, setFeedItems] = useState<FeedItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
   const [currentIndex, setCurrentIndex] = useState(0)
   const [scrollDirection, setScrollDirection] = useState<'down' | 'up'>('down')
-  // Track whether the user has interacted — gates audio unmute
   const [hasInteracted, setHasInteracted] = useState(false)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const lastScrollTopRef = useRef(0)
-  const itemRefs = useRef<(HTMLDivElement | null)[]>(
-    Array.from({ length: FEED_ITEMS.length }, () => null)
-  )
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const observerRef = useRef<IntersectionObserver | null>(null)
+
+  // --- Fetch real Mux assets on mount ---
+  useEffect(() => {
+    async function loadFeed() {
+      try {
+        const res = await fetch('/api/mux/assets')
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}))
+          throw new Error(json.error ?? `API error ${res.status}`)
+        }
+        const json: { videos: MuxVideo[] } = await res.json()
+        setFeedItems(buildFeedItems(json.videos))
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load feed.')
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadFeed()
+  }, [])
+
+  // Keep itemRefs array sized correctly when feedItems changes
+  useEffect(() => {
+    itemRefs.current = Array.from({ length: feedItems.length }, (_, i) =>
+      itemRefs.current[i] ?? null
+    )
+  }, [feedItems.length])
 
   // --- Scroll direction tracking ---
   useEffect(() => {
@@ -29,11 +67,8 @@ export default function FeedContainer() {
 
     const handleScroll = () => {
       const st = container.scrollTop
-      if (st > lastScrollTopRef.current) {
-        setScrollDirection('down')
-      } else if (st < lastScrollTopRef.current) {
-        setScrollDirection('up')
-      }
+      if (st > lastScrollTopRef.current) setScrollDirection('down')
+      else if (st < lastScrollTopRef.current) setScrollDirection('up')
       lastScrollTopRef.current = st
     }
 
@@ -41,24 +76,20 @@ export default function FeedContainer() {
     return () => container.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // --- IntersectionObserver — pick the most visible item (>= threshold) ---
+  // --- IntersectionObserver — picks the most visible item >= threshold ---
   useEffect(() => {
+    if (feedItems.length === 0) return
     observerRef.current?.disconnect()
 
-    // Keep a visibility ratio map so we can pick the most visible item
     const ratioMap = new Map<number, number>()
 
     observerRef.current = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          const el = entry.target as HTMLDivElement
-          const idx = Number(el.dataset.index)
-          if (!isNaN(idx)) {
-            ratioMap.set(idx, entry.intersectionRatio)
-          }
+          const idx = Number((entry.target as HTMLDivElement).dataset.index)
+          if (!isNaN(idx)) ratioMap.set(idx, entry.intersectionRatio)
         })
 
-        // Find the item with the highest visibility that meets the threshold
         let bestIdx = -1
         let bestRatio = OBSERVE_THRESHOLD - 0.001
         ratioMap.forEach((ratio, idx) => {
@@ -68,9 +99,7 @@ export default function FeedContainer() {
           }
         })
 
-        if (bestIdx !== -1) {
-          setCurrentIndex(bestIdx)
-        }
+        if (bestIdx !== -1) setCurrentIndex(bestIdx)
       },
       { threshold: OBSERVE_THRESHOLD }
     )
@@ -80,13 +109,13 @@ export default function FeedContainer() {
     })
 
     return () => observerRef.current?.disconnect()
-  }, [])
+  }, [feedItems.length])
 
   // --- Directional shouldPreload ---
   // distance = index - currentIndex
   // "ahead" in scroll direction:
-  //   scrollDirection "down" → distance > 0 is ahead
-  //   scrollDirection "up"   → distance < 0 is ahead
+  //   "down" → positive distance is ahead
+  //   "up"   → negative distance is ahead
   const shouldPreload = useCallback(
     (index: number): boolean => {
       if (index === currentIndex) return true
@@ -94,13 +123,11 @@ export default function FeedContainer() {
       const isAhead =
         scrollDirection === 'down' ? distance > 0 : distance < 0
       const absDist = Math.abs(distance)
-      if (isAhead) return absDist <= MAX_AHEAD
-      return absDist <= MAX_BEHIND
+      return isAhead ? absDist <= MAX_AHEAD : absDist <= MAX_BEHIND
     },
     [currentIndex, scrollDirection]
   )
 
-  // --- First-interaction handler — set on the container so any click counts ---
   const handleFirstInteraction = useCallback(() => {
     if (!hasInteracted) setHasInteracted(true)
   }, [hasInteracted])
@@ -108,14 +135,52 @@ export default function FeedContainer() {
   const setItemRef = useCallback(
     (index: number) => (el: HTMLDivElement | null) => {
       itemRefs.current[index] = el
-      if (el && observerRef.current) {
-        observerRef.current.observe(el)
-      }
+      if (el && observerRef.current) observerRef.current.observe(el)
     },
     []
   )
 
-  const preloadIndices = FEED_ITEMS.map((_, i) => i).filter(shouldPreload)
+  const preloadIndices = feedItems.map((_, i) => i).filter(shouldPreload)
+
+  // --- Loading state ---
+  if (loading) {
+    return (
+      <div className="flex h-dvh w-full flex-col items-center justify-center gap-4 bg-background">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-border border-t-foreground" />
+        <p className="font-sans text-sm font-semibold tracking-widest uppercase text-muted-foreground">
+          Loading feed...
+        </p>
+      </div>
+    )
+  }
+
+  // --- Error state ---
+  if (error) {
+    return (
+      <div className="flex h-dvh w-full flex-col items-center justify-center gap-3 bg-background px-6 text-center">
+        <p className="text-2xl font-black tracking-tight text-foreground">Something went wrong</p>
+        <p className="text-sm text-muted-foreground">{error}</p>
+        <button
+          onClick={() => { setError(null); setLoading(true); window.location.reload() }}
+          className="mt-2 rounded-md bg-foreground px-5 py-2 text-sm font-bold text-background hover:opacity-80 transition-opacity"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
+
+  // --- Empty state ---
+  if (feedItems.length === 0) {
+    return (
+      <div className="flex h-dvh w-full flex-col items-center justify-center gap-3 bg-background px-6 text-center">
+        <p className="text-2xl font-black tracking-tight text-foreground">No videos yet</p>
+        <p className="text-sm text-muted-foreground">
+          Upload videos to your Mux account to see them here.
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -144,7 +209,7 @@ export default function FeedContainer() {
         </div>
       </div>
 
-      {FEED_ITEMS.map((item, index) => (
+      {feedItems.map((item, index) => (
         <FeedItemView
           key={item.id}
           item={item}
