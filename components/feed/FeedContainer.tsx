@@ -17,7 +17,8 @@ export default function FeedContainer() {
   const lastScrollTopRef = useRef(0)
 
   // Intersection observer refs — one per item
-  const itemRefs = useRef<(HTMLDivElement | null)[]>(new Array(FEED_ITEMS.length).fill(null))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const itemRefs = useRef<(HTMLDivElement | null)[]>(Array.from({ length: FEED_ITEMS.length }, () => null))
   const observerRef = useRef<IntersectionObserver | null>(null)
 
   // Compute preload window based on direction

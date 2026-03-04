@@ -1,129 +1,53 @@
 export interface FeedItem {
   id: string
   playbackId: string
+  caption: string
+  likes: number
   username: string
   handle: string
   description: string
   song: string
-  likes: number
   comments: number
   shares: number
 }
 
 const DEMO_PLAYBACK_ID = 'a4nOgmxGWg6gULfcBbAa00gXyfcwPnAFldF8RdsNyk8M'
 
-export const FEED_ITEMS: FeedItem[] = [
-  {
-    id: '1',
-    playbackId: DEMO_PLAYBACK_ID,
-    username: 'Jordan Lee',
-    handle: '@jordanlee',
-    description: 'Golden hour vibes hitting different today ✨ #sunset #vibes #fyp',
-    song: 'Golden Hour — JVKE',
-    likes: 284300,
-    comments: 4812,
-    shares: 9201,
-  },
-  {
-    id: '2',
-    playbackId: DEMO_PLAYBACK_ID,
-    username: 'Alex Rivera',
-    handle: '@alexrivera',
-    description: 'POV: you finally nailed the perfect shot 📸 #photography #creative',
-    song: 'Snooze — SZA',
-    likes: 512000,
-    comments: 8340,
-    shares: 21000,
-  },
-  {
-    id: '3',
-    playbackId: DEMO_PLAYBACK_ID,
-    username: 'Maya Chen',
-    handle: '@mayachen',
-    description: 'Morning routine that changed my life ☀️ #wellness #morning #routine',
-    song: 'Levitating — Dua Lipa',
-    likes: 93100,
-    comments: 2100,
-    shares: 5430,
-  },
-  {
-    id: '4',
-    playbackId: DEMO_PLAYBACK_ID,
-    username: 'Sam Torres',
-    handle: '@samtorres',
-    description: 'When the beat drops and you just KNOW 🔥 #music #dance #fyp',
-    song: 'Flowers — Miley Cyrus',
-    likes: 1200000,
-    comments: 34000,
-    shares: 88000,
-  },
-  {
-    id: '5',
-    playbackId: DEMO_PLAYBACK_ID,
-    username: 'Riley Park',
-    handle: '@rileypark',
-    description: 'Cooking this for dinner every single week 🍜 #food #recipe #cooking',
-    song: 'As It Was — Harry Styles',
-    likes: 430000,
-    comments: 12000,
-    shares: 28000,
-  },
-  {
-    id: '6',
-    playbackId: DEMO_PLAYBACK_ID,
-    username: 'Casey Kim',
-    handle: '@caseykim',
-    description: 'Travel hack that saved me $800 ✈️ #travel #lifehack #tips',
-    song: 'Stay — The Kid LAROI',
-    likes: 765000,
-    comments: 19000,
-    shares: 51000,
-  },
-  {
-    id: '7',
-    playbackId: DEMO_PLAYBACK_ID,
-    username: 'Morgan Ellis',
-    handle: '@morganellis',
-    description: 'The forest at 5am is absolutely unreal 🌲 #nature #forest #peaceful',
-    song: 'Heat Waves — Glass Animals',
-    likes: 221000,
-    comments: 6700,
-    shares: 14000,
-  },
-  {
-    id: '8',
-    playbackId: DEMO_PLAYBACK_ID,
-    username: 'Drew Santos',
-    handle: '@drewsantos',
-    description: 'Just vibing with the crew 🎶 #friends #summer #memories',
-    song: 'About Damn Time — Lizzo',
-    likes: 380000,
-    comments: 8900,
-    shares: 22000,
-  },
-  {
-    id: '9',
-    playbackId: DEMO_PLAYBACK_ID,
-    username: 'Taylor Quinn',
-    handle: '@taylorquinn',
-    description: 'Surprise! The reaction I waited a year to capture 😭❤️ #wholesome #heartwarming',
-    song: 'Perfect — Ed Sheeran',
-    likes: 2100000,
-    comments: 67000,
-    shares: 190000,
-  },
-  {
-    id: '10',
-    playbackId: DEMO_PLAYBACK_ID,
-    username: 'Sage Ortiz',
-    handle: '@sageortiz',
-    description: 'Thrift flip that took 3 hours — worth it? 🧵 #fashion #thrift #diy',
-    song: 'Good 4 U — Olivia Rodrigo',
-    likes: 640000,
-    comments: 22000,
-    shares: 45000,
-  },
+const SEED_DATA = [
+  { caption: 'Golden hour vibes hitting different today #sunset #vibes #fyp', username: 'Jordan Lee', handle: '@jordanlee', description: 'Golden hour vibes hitting different today ✨', song: 'Golden Hour — JVKE', comments: 4812, shares: 9201, likes: 284300 },
+  { caption: 'POV: you finally nailed the perfect shot 📸 #photography #creative', username: 'Alex Rivera', handle: '@alexrivera', description: 'POV: you finally nailed the perfect shot 📸', song: 'Snooze — SZA', comments: 8340, shares: 21000, likes: 512000 },
+  { caption: 'Morning routine that changed my life ☀️ #wellness #morning', username: 'Maya Chen', handle: '@mayachen', description: 'Morning routine that changed my life ☀️', song: 'Levitating — Dua Lipa', comments: 2100, shares: 5430, likes: 93100 },
+  { caption: 'When the beat drops and you just KNOW 🔥 #music #dance #fyp', username: 'Sam Torres', handle: '@samtorres', description: 'When the beat drops and you just KNOW 🔥', song: 'Flowers — Miley Cyrus', comments: 34000, shares: 88000, likes: 1200000 },
+  { caption: 'Cooking this for dinner every single week 🍜 #food #recipe', username: 'Riley Park', handle: '@rileypark', description: 'Cooking this for dinner every single week 🍜', song: 'As It Was — Harry Styles', comments: 12000, shares: 28000, likes: 430000 },
+  { caption: 'Travel hack that saved me $800 ✈️ #travel #lifehack #tips', username: 'Casey Kim', handle: '@caseykim', description: 'Travel hack that saved me $800 ✈️', song: 'Stay — The Kid LAROI', comments: 19000, shares: 51000, likes: 765000 },
+  { caption: 'The forest at 5am is absolutely unreal 🌲 #nature #forest', username: 'Morgan Ellis', handle: '@morganellis', description: 'The forest at 5am is absolutely unreal 🌲', song: 'Heat Waves — Glass Animals', comments: 6700, shares: 14000, likes: 221000 },
+  { caption: 'Just vibing with the crew 🎶 #friends #summer #memories', username: 'Drew Santos', handle: '@drewsantos', description: 'Just vibing with the crew 🎶', song: 'About Damn Time — Lizzo', comments: 8900, shares: 22000, likes: 380000 },
+  { caption: 'Surprise! The reaction I waited a year to capture 😭❤️ #wholesome', username: 'Taylor Quinn', handle: '@taylorquinn', description: 'Surprise! The reaction I waited a year to capture 😭❤️', song: 'Perfect — Ed Sheeran', comments: 67000, shares: 190000, likes: 2100000 },
+  { caption: 'Thrift flip that took 3 hours — worth it? 🧵 #fashion #thrift', username: 'Sage Ortiz', handle: '@sageortiz', description: 'Thrift flip that took 3 hours — worth it? 🧵', song: 'Good 4 U — Olivia Rodrigo', comments: 22000, shares: 45000, likes: 640000 },
+  { caption: 'City lights from the rooftop 🌃 #citylife #nighttime #urban', username: 'Noa Blake', handle: '@noablake', description: 'City lights from the rooftop 🌃', song: 'Blinding Lights — The Weeknd', comments: 11200, shares: 31000, likes: 487000 },
+  { caption: 'Tested every viral coffee hack — here are the results ☕ #coffee', username: 'Jamie Wu', handle: '@jamiewu', description: 'Tested every viral coffee hack — here are the results ☕', song: 'Espresso — Sabrina Carpenter', comments: 5600, shares: 17000, likes: 312000 },
+  { caption: 'Sunset sail on the open water ⛵ #sailing #ocean #wanderlust', username: 'Priya Nair', handle: '@priyanair', description: 'Sunset sail on the open water ⛵', song: 'Watermelon Sugar — Harry Styles', comments: 3400, shares: 8800, likes: 195000 },
+  { caption: 'Found this hidden café and now I can never leave ☕🌿 #cafelife', username: 'Felix Mora', handle: '@felixmora', description: 'Found this hidden café and now I can never leave ☕🌿', song: 'Lover — Taylor Swift', comments: 7100, shares: 19500, likes: 329000 },
+  { caption: 'One year of progress — never give up 💪 #fitness #transformation', username: 'Zara Ahmed', handle: '@zaraahmed', description: 'One year of progress — never give up 💪', song: 'Eye of the Tiger — Survivor', comments: 28000, shares: 72000, likes: 1450000 },
+  { caption: 'Late night drive, windows down, perfect playlist 🚗🎵 #roadtrip', username: 'Eli Cross', handle: '@elicross', description: 'Late night drive, windows down, perfect playlist 🚗🎵', song: 'Midnight Rain — Taylor Swift', comments: 9300, shares: 24000, likes: 418000 },
+  { caption: 'When your dog sees you after 2 weeks 🐶❤️ #dogs #pets #wholesome', username: 'Suki Park', handle: '@sukipark', description: 'When your dog sees you after 2 weeks 🐶❤️', song: 'Puppy Love — Paul Anka', comments: 41000, shares: 105000, likes: 2800000 },
+  { caption: 'Handmade pottery from scratch — my first bowl! 🏺 #pottery #craft', username: 'Leo Bauer', handle: '@leobauer', description: 'Handmade pottery from scratch — my first bowl! 🏺', song: 'Simple — Florida Georgia Line', comments: 6200, shares: 15000, likes: 274000 },
+  { caption: 'Street food tour of Tokyo — every bite was insane 🍣🍜 #japan', username: 'Mia Tanaka', handle: '@miatanaka', description: 'Street food tour of Tokyo — every bite was insane 🍣🍜', song: 'Tokyo — Imagine Dragons', comments: 18000, shares: 49000, likes: 870000 },
+  { caption: 'Learning to surf at 35 — it is never too late 🏄 #surfing #lifestyle', username: 'Omar Diaz', handle: '@omardiaz', description: 'Learning to surf at 35 — it is never too late 🏄', song: 'Life is a Highway — Tom Cochrane', comments: 13500, shares: 36000, likes: 593000 },
 ]
+
+export const FEED_ITEMS: FeedItem[] = Array.from({ length: 20 }, (_, i) => ({
+  id: String(i + 1),
+  playbackId: DEMO_PLAYBACK_ID,
+  caption: SEED_DATA[i].caption,
+  likes: SEED_DATA[i].likes,
+  username: SEED_DATA[i].username,
+  handle: SEED_DATA[i].handle,
+  description: SEED_DATA[i].description,
+  song: SEED_DATA[i].song,
+  comments: SEED_DATA[i].comments,
+  shares: SEED_DATA[i].shares,
+}))
 
 export function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
