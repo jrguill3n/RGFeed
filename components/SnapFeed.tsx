@@ -49,7 +49,7 @@ export default function SnapFeed() {
           throw new Error(json.error ?? `API error ${res.status}`)
         }
         const json: { videos: MuxVideo[] } = await res.json()
-        setFeedItems(interlaceAds(buildFeedItems(json.videos), 4))
+        setFeedItems(interlaceAds(buildFeedItems(json.videos), 2))
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load feed.')
       } finally {
@@ -195,7 +195,8 @@ export default function SnapFeed() {
         aria-label="Video feed"
         onPointerDown={handleFirstInteraction}
       >
-        {feedItems.map((slot, index) => {
+        {feedItems.filter(Boolean).map((slot, index) => {
+          if (!slot?.id) return null
           const isActive = index === currentIndex
 
           if (slot.type === 'ad') {

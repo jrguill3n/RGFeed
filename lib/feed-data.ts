@@ -121,25 +121,46 @@ const AD_CREATIVES: Omit<AdItem, 'type' | 'id'>[] = [
 
 /**
  * Inserts an ad slot every `interval` content items.
- * e.g. interval=4 → content, content, content, content, AD, content, ...
+ * e.g. interval=2 → content, content, AD, content, content, AD, ...
+ *
+ * Built with explicit push() calls — no sparse arrays, no index assignment.
+ * Every item is validated before insertion; invalid entries are skipped.
  */
-export function interlaceAds(items: FeedItem[], interval = 4): FeedSlot[] {
+export function interlaceAds(items: FeedItem[], interval = 2): FeedSlot[] {
   const result: FeedSlot[] = []
   let adIndex = 0
+  let contentCount = 0
 
-  items.forEach((item, i) => {
+  for (const item of items) {
+    // Guard: skip any undefined/null entries that may slip through buildFeedItems
+    if (!item || !item.id) {
+      console.warn('[feed] skipping invalid content item', item)
+      continue
+    }
+
     result.push({ type: 'content', ...item })
-    // After every `interval` content items, insert an ad
-    if ((i + 1) % interval === 0) {
+    contentCount++
+
+    if (contentCount % interval === 0) {
       const creative = AD_CREATIVES[adIndex % AD_CREATIVES.length]
-      result.push({
+      const adEntry: AdItem = {
         type: 'ad',
         id: `ad-${adIndex}`,
-        ...creative,
-      })
+        adTagUrl: creative.adTagUrl,
+        advertiser: creative.advertiser,
+        headline: creative.headline,
+        ctaText: creative.ctaText,
+        ctaUrl: creative.ctaUrl,
+      }
+      result.push(adEntry)
       adIndex++
     }
-  })
+  }
+
+  // Debug: log final feed composition
+  console.log('[feed] interlaceAds result length:', result.length)
+  const invalid = result.filter((s) => !s || !s.id)
+  if (invalid.length > 0) console.warn('[feed] invalid entries found:', invalid)
 
   return result
 }

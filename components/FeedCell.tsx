@@ -50,6 +50,11 @@ interface AdCellProps {
 type Props = ContentCellProps | AdCellProps
 
 export default function FeedCell(props: Props) {
+  // Defensive guard: if props are malformed, render an empty snap cell
+  if (!props || (props.type === 'content' && !props.item) || (props.type === 'ad' && !props.ad)) {
+    return <div className="feed-item relative w-full h-dvh bg-black" />
+  }
+
   const { index, isActive, observerRef } = props
 
   const [liked, setLiked] = useState(false)
@@ -115,7 +120,7 @@ export default function FeedCell(props: Props) {
       ref={observerRef}
       className="feed-item relative w-full h-dvh overflow-hidden bg-transparent will-change-transform"
       data-index={index}
-      data-id={item?.id ?? props.type === 'ad' ? (props as AdCellProps).ad.id : ''}
+      data-id={props.type === 'ad' ? props.ad.id : (item?.id ?? '')}
     >
       {/*
         Poster overlay — visible until SharedPlayer has decoded the first frame
