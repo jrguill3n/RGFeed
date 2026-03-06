@@ -78,3 +78,68 @@ export function formatCount(n: number): string {
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
   return String(n)
 }
+
+// ---------------------------------------------------------------------------
+// Ad feed items
+// ---------------------------------------------------------------------------
+
+/** A VAST ad slot inserted between content videos */
+export interface AdItem {
+  type: 'ad'
+  id: string
+  adTagUrl: string
+  advertiser: string
+  headline: string
+  ctaText: string
+  ctaUrl: string
+}
+
+/** Union type for all feed slot types */
+export type FeedSlot = ({ type: 'content' } & FeedItem) | AdItem
+
+/** Google IMA SDK sample VAST tag (single vertical ad) */
+const SAMPLE_VAST_TAG =
+  'https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/single_vertical_ad_samples&sz=360x640&gdfp_req=1&output=vast&unviewed_position_start=1&env=vp&correlator='
+
+/** Sample ad creatives cycled into the feed */
+const AD_CREATIVES: Omit<AdItem, 'type' | 'id'>[] = [
+  {
+    adTagUrl: SAMPLE_VAST_TAG,
+    advertiser: 'Mux',
+    headline: 'Video infrastructure for every developer',
+    ctaText: 'Learn more',
+    ctaUrl: 'https://mux.com',
+  },
+  {
+    adTagUrl: SAMPLE_VAST_TAG,
+    advertiser: 'Vercel',
+    headline: 'Ship faster with the best frontend platform',
+    ctaText: 'Get started',
+    ctaUrl: 'https://vercel.com',
+  },
+]
+
+/**
+ * Inserts an ad slot every `interval` content items.
+ * e.g. interval=4 → content, content, content, content, AD, content, ...
+ */
+export function interlaceAds(items: FeedItem[], interval = 4): FeedSlot[] {
+  const result: FeedSlot[] = []
+  let adIndex = 0
+
+  items.forEach((item, i) => {
+    result.push({ type: 'content', ...item })
+    // After every `interval` content items, insert an ad
+    if ((i + 1) % interval === 0) {
+      const creative = AD_CREATIVES[adIndex % AD_CREATIVES.length]
+      result.push({
+        type: 'ad',
+        id: `ad-${adIndex}`,
+        ...creative,
+      })
+      adIndex++
+    }
+  })
+
+  return result
+}

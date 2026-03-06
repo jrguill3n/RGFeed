@@ -16,14 +16,15 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { buildFeedItems, FeedItem, MuxVideo } from '@/lib/feed-data'
+import { buildFeedItems, FeedItem, FeedSlot, interlaceAds, MuxVideo } from '@/lib/feed-data'
 import { shouldPreload as computeShouldPreload } from '@/lib/preloadWindow'
 import VideoCell from './VideoCell'
+import AdCell from './AdCell'
 
 const OBSERVE_THRESHOLD = 0.6
 
 export default function SnapFeed() {
-  const [feedItems, setFeedItems] = useState<FeedItem[]>([])
+  const [feedItems, setFeedItems] = useState<FeedSlot[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -52,7 +53,8 @@ export default function SnapFeed() {
           throw new Error(json.error ?? `API error ${res.status}`)
         }
         const json: { videos: MuxVideo[] } = await res.json()
-        setFeedItems(buildFeedItems(json.videos))
+        // Interlace ad slots every 4 content videos
+        setFeedItems(interlaceAds(buildFeedItems(json.videos), 4))
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load feed.')
       } finally {
@@ -211,16 +213,33 @@ export default function SnapFeed() {
       aria-label="Video feed"
       onPointerDown={handleFirstInteraction}
     >
-      {feedItems.map((item, index) => {
+      {feedItems.map((slot, index) => {
+        const isActive = index === currentIndex
         const preload = computeShouldPreload(index, currentIndex, scrollDirection)
         const paused = pausedMap[index] ?? false
+
+        // Ad slot — rendered by AdCell with Google IMA SDK
+        if (slot.type === 'ad') {
+          return (
+            <AdCell
+              key={slot.id}
+              ad={slot}
+              index={index}
+              isActive={isActive}
+              hasInteracted={hasInteracted}
+              observerRef={setItemRef(index)}
+            />
+          )
+        }
+
+        // Content slot — rendered by VideoCell with MuxPlayer
         return (
           <VideoCell
-            key={item.id}
-            video={{ id: item.id, playbackId: item.playbackId }}
-            item={item}
+            key={slot.id}
+            video={{ id: slot.id, playbackId: slot.playbackId }}
+            item={slot}
             index={index}
-            isActive={index === currentIndex}
+            isActive={isActive}
             shouldPreload={preload}
             paused={paused}
             setPaused={makeSetPaused(index)}
