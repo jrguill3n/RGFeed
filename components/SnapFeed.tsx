@@ -3,23 +3,23 @@
 /**
  * SnapFeed
  *
- * The scroll-snap feed container -- web equivalent of FlashList in Slop Social.
+ * Composes the full feed from three fixed-position shared layers
+ * and a list of lightweight FeedCell scroll-snap items.
  *
- * Responsibilities:
- * - Full-screen scroll-snap container (CSS scroll-snap-type: y mandatory)
- * - IntersectionObserver (threshold 0.6) to detect currentIndex
- * - scrollTop delta tracking for scrollDirection ("down" | "up")
- * - hasInteracted state (gates audio and warmup behind first user gesture)
- * - Fetches video list from /api/mux/assets on mount
- * - Renders VideoCell for each item with preload window from lib/preloadWindow
- * - paused state per item, reset to false when currentIndex changes
+ * Layer architecture:
+ *   z-0  SharedPlayer  — one MuxPlayer, fixed, full-screen, playbackId-switched
+ *   z-2  ImaOverlay    — one IMA container, fixed, shown only for ad slots
+ *   z-3+ FeedCell list — poster + UI overlays only, transparent bg
+ *
+ * This mirrors the Slop Social principle: only one active playback pipeline
+ * at any time. Switching videos = updating a prop, not remounting a player.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { buildFeedItems, FeedItem, FeedSlot, interlaceAds, MuxVideo } from '@/lib/feed-data'
-import { shouldPreload as computeShouldPreload } from '@/lib/preloadWindow'
-import VideoCell from './VideoCell'
-import AdCell from './AdCell'
+import { buildFeedItems, FeedSlot, interlaceAds, MuxVideo, AdItem } from '@/lib/feed-data'
+import SharedPlayer from './SharedPlayer'
+import ImaOverlay from './ImaOverlay'
+import FeedCell from './FeedCell'
 
 const OBSERVE_THRESHOLD = 0.6
 
@@ -29,21 +29,17 @@ export default function SnapFeed() {
   const [error, setError] = useState<string | null>(null)
 
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [scrollDirection, setScrollDirection] = useState<'down' | 'up'>('down')
   const [hasInteracted, setHasInteracted] = useState(false)
-
-  // paused state per item -- only the active item's paused flag matters for playback
   const [pausedMap, setPausedMap] = useState<Record<number, boolean>>({})
+  // Lifted from SharedPlayer so FeedCell can show/hide the poster overlay
+  const [isFrameReady, setIsFrameReady] = useState(false)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const lastScrollTopRef = useRef(0)
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const observerRef = useRef<IntersectionObserver | null>(null)
-  // Guard so the active-player prime runs only once per session
-  const didPrimeRef = useRef(false)
-  const primeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // --- Fetch real Mux assets on mount ---
+  // --- Fetch feed on mount ---
   useEffect(() => {
     async function loadFeed() {
       try {
@@ -53,7 +49,6 @@ export default function SnapFeed() {
           throw new Error(json.error ?? `API error ${res.status}`)
         }
         const json: { videos: MuxVideo[] } = await res.json()
-        // Interlace ad slots every 4 content videos
         setFeedItems(interlaceAds(buildFeedItems(json.videos), 4))
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load feed.')
@@ -64,7 +59,7 @@ export default function SnapFeed() {
     loadFeed()
   }, [])
 
-  // Keep itemRefs array sized correctly when feedItems changes
+  // Keep itemRefs sized correctly
   useEffect(() => {
     itemRefs.current = Array.from(
       { length: feedItems.length },
@@ -72,85 +67,52 @@ export default function SnapFeed() {
     )
   }, [feedItems.length])
 
-  // Reset the active item's paused state whenever currentIndex changes
+  // Reset paused + frame-ready when active index changes
   useEffect(() => {
     setPausedMap((prev) => ({ ...prev, [currentIndex]: false }))
+    setIsFrameReady(false)
   }, [currentIndex])
 
-  // --- Scroll direction tracking ---
+  // Scroll direction tracking
   useEffect(() => {
     const container = scrollContainerRef.current
     if (!container) return
-    const handleScroll = () => {
+    const onScroll = () => {
       const st = container.scrollTop
-      if (st > lastScrollTopRef.current) setScrollDirection('down')
-      else if (st < lastScrollTopRef.current) setScrollDirection('up')
       lastScrollTopRef.current = st
     }
-    container.addEventListener('scroll', handleScroll, { passive: true })
-    return () => container.removeEventListener('scroll', handleScroll)
+    container.addEventListener('scroll', onScroll, { passive: true })
+    return () => container.removeEventListener('scroll', onScroll)
   }, [])
 
-  // --- IntersectionObserver: picks the most visible item >= threshold ---
+  // IntersectionObserver
   useEffect(() => {
     if (feedItems.length === 0) return
     observerRef.current?.disconnect()
 
     const ratioMap = new Map<number, number>()
-
     observerRef.current = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          const idx = Number((entry.target as HTMLDivElement).dataset.index)
+          const idx = Number((entry.target as HTMLElement).dataset.index)
           if (!isNaN(idx)) ratioMap.set(idx, entry.intersectionRatio)
         })
         let bestIdx = -1
         let bestRatio = OBSERVE_THRESHOLD - 0.001
         ratioMap.forEach((ratio, idx) => {
-          if (ratio > bestRatio) {
-            bestRatio = ratio
-            bestIdx = idx
-          }
+          if (ratio > bestRatio) { bestRatio = ratio; bestIdx = idx }
         })
         if (bestIdx !== -1) setCurrentIndex(bestIdx)
       },
       { threshold: OBSERVE_THRESHOLD }
     )
-
-    itemRefs.current.forEach((el) => {
-      if (el) observerRef.current?.observe(el)
-    })
-
+    itemRefs.current.forEach((el) => { if (el) observerRef.current?.observe(el) })
     return () => observerRef.current?.disconnect()
   }, [feedItems.length])
 
   const handleFirstInteraction = useCallback(() => {
-    // Always unlock media on first gesture
     setHasInteracted(true)
-
-    // Prime the active player once so the first play feels instant.
-    // Uses pointerdown so this fires as early as possible in the gesture lifecycle.
-    if (didPrimeRef.current) return
-    didPrimeRef.current = true
-
-    const container = itemRefs.current[currentIndex]
-    if (!container) return
-    const player = container.querySelector('mux-player') as
-      | (HTMLElement & { play: () => Promise<void>; pause: () => void; currentTime: number })
-      | null
-    if (!player) return
-
-    player.play().catch(() => {
-      // Autoplay may still be blocked; the warmup in VideoCell handles the retry
-    })
-    primeTimerRef.current = setTimeout(() => {
-      primeTimerRef.current = null
-      player.pause()
-      player.currentTime = 0
-    }, 100)
-  // currentIndex is intentionally captured at call time — we only prime once
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex])
+  }, [])
 
   const setItemRef = useCallback(
     (index: number) => (el: HTMLDivElement | null) => {
@@ -166,7 +128,14 @@ export default function SnapFeed() {
     []
   )
 
-  // --- Loading state ---
+  // Derive current active slot
+  const activeSlot = feedItems[currentIndex] ?? null
+  const activeContentPlaybackId =
+    activeSlot?.type === 'content' ? activeSlot.playbackId : null
+  const activeAd: AdItem | null =
+    activeSlot?.type === 'ad' ? activeSlot : null
+
+  // --- States ---
   if (loading) {
     return (
       <div className="flex h-dvh w-full flex-col items-center justify-center gap-4 bg-background">
@@ -178,7 +147,6 @@ export default function SnapFeed() {
     )
   }
 
-  // --- Error state ---
   if (error) {
     return (
       <div className="flex h-dvh w-full flex-col items-center justify-center gap-3 bg-background px-6 text-center">
@@ -194,7 +162,6 @@ export default function SnapFeed() {
     )
   }
 
-  // --- Empty state ---
   if (feedItems.length === 0) {
     return (
       <div className="flex h-dvh w-full flex-col items-center justify-center gap-3 bg-background px-6 text-center">
@@ -207,47 +174,58 @@ export default function SnapFeed() {
   }
 
   return (
-    <div
-      ref={scrollContainerRef}
-      className="feed-scroll w-full"
-      aria-label="Video feed"
-      onPointerDown={handleFirstInteraction}
-    >
-      {feedItems.map((slot, index) => {
-        const isActive = index === currentIndex
-        const preload = computeShouldPreload(index, currentIndex, scrollDirection)
-        const paused = pausedMap[index] ?? false
+    <>
+      {/* Layer 0: one shared video player, fixed full-screen, behind everything */}
+      <SharedPlayer
+        playbackId={activeContentPlaybackId}
+        hasInteracted={hasInteracted}
+        paused={pausedMap[currentIndex] ?? false}
+        onFrameReady={() => setIsFrameReady(true)}
+        onFrameReset={() => setIsFrameReady(false)}
+      />
 
-        // Ad slot — rendered by AdCell with Google IMA SDK
-        if (slot.type === 'ad') {
+      {/* Layer 2: one IMA overlay, fixed full-screen, shown only for ad slots */}
+      <ImaOverlay activeAd={activeAd} hasInteracted={hasInteracted} />
+
+      {/* Scroll-snap list: FeedCells are poster + UI only, no players */}
+      <div
+        ref={scrollContainerRef}
+        className="feed-scroll relative w-full"
+        style={{ zIndex: 3 }}
+        aria-label="Video feed"
+        onPointerDown={handleFirstInteraction}
+      >
+        {feedItems.map((slot, index) => {
+          const isActive = index === currentIndex
+
+          if (slot.type === 'ad') {
+            return (
+              <FeedCell
+                key={slot.id}
+                type="ad"
+                ad={slot}
+                index={index}
+                isActive={isActive}
+                observerRef={setItemRef(index)}
+              />
+            )
+          }
+
           return (
-            <AdCell
+            <FeedCell
               key={slot.id}
-              ad={slot}
+              type="content"
+              item={slot}
               index={index}
               isActive={isActive}
-              hasInteracted={hasInteracted}
+              isFrameReady={isActive ? isFrameReady : true}
+              paused={pausedMap[index] ?? false}
+              setPaused={makeSetPaused(index)}
               observerRef={setItemRef(index)}
             />
           )
-        }
-
-        // Content slot — rendered by VideoCell with MuxPlayer
-        return (
-          <VideoCell
-            key={slot.id}
-            video={{ id: slot.id, playbackId: slot.playbackId }}
-            item={slot}
-            index={index}
-            isActive={isActive}
-            shouldPreload={preload}
-            paused={paused}
-            setPaused={makeSetPaused(index)}
-            hasInteracted={hasInteracted}
-            observerRef={setItemRef(index)}
-          />
-        )
-      })}
-    </div>
+        })}
+      </div>
+    </>
   )
 }
